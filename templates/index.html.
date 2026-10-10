@@ -1,0 +1,304 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Management System</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #243047;
+        }
+
+        header {
+            background: #243b64;
+            color: white;
+            padding: 24px 8%;
+        }
+
+        header h1 {
+            margin: 0 0 8px;
+        }
+
+        header p {
+            margin: 0;
+            color: #dce7fa;
+        }
+
+        main {
+            max-width: 1000px;
+            margin: 32px auto;
+            padding: 0 20px;
+        }
+
+        .panel {
+            background: white;
+            padding: 24px;
+            margin-bottom: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 18px #1e355010;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccd5e2;
+            border-radius: 7px;
+            font-size: 15px;
+        }
+
+        button {
+            border: 0;
+            padding: 11px 16px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-weight: bold;
+            background: #315fbd;
+            color: white;
+        }
+
+        button:hover {
+            opacity: 0.88;
+        }
+
+        .add-button {
+            margin-top: 16px;
+        }
+
+        .delete-button {
+            background: #c43e4b;
+        }
+
+        #message {
+            margin-top: 14px;
+        }
+
+        .success {
+            color: #187443;
+        }
+
+        .error {
+            color: #c43e4b;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 14px 10px;
+            border-bottom: 1px solid #e7ebf1;
+        }
+
+        th {
+            background: #f7f9fc;
+        }
+
+        #empty {
+            color: #69768b;
+            padding: 20px 0;
+        }
+
+        @media (max-width: 650px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            header {
+                padding: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Student Management System</h1>
+        <p>Manage student records in one place</p>
+    </header>
+
+    <main>
+        <section class="panel">
+            <h2>Add a Student</h2>
+
+            <form id="student-form">
+                <div class="form-grid">
+                    <input id="name" type="text"
+                           placeholder="Full name" required>
+
+                    <input id="email" type="email"
+                           placeholder="Email address" required>
+
+                    <input id="course" type="text"
+                           placeholder="Course name" required>
+                </div>
+
+                <button class="add-button" type="submit">
+                    Add Student
+                </button>
+            </form>
+
+            <p id="message" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="panel">
+            <h2>Student Records</h2>
+            <p id="count">Loading records...</p>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Course</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-list"></tbody>
+                </table>
+            </div>
+
+            <p id="empty" hidden>No student records yet.</p>
+        </section>
+    </main>
+
+    <script>
+        const form = document.getElementById("student-form");
+        const list = document.getElementById("student-list");
+        const message = document.getElementById("message");
+        const count = document.getElementById("count");
+        const empty = document.getElementById("empty");
+
+        function showMessage(text, isError = false) {
+            message.textContent = text;
+            message.className = isError ? "error" : "success";
+        }
+
+        async function loadStudents() {
+            count.textContent = "Loading records...";
+            list.replaceChildren();
+            empty.hidden = true;
+
+            try {
+                const response = await fetch("/api/students");
+
+                if (!response.ok) {
+                    throw new Error("Could not load students.");
+                }
+
+                const students = await response.json();
+
+                count.textContent = "Total students: " + students.length;
+                empty.hidden = students.length !== 0;
+
+                students.forEach(student => {
+                    const row = document.createElement("tr");
+
+                    [student.id, student.name,
+                     student.email, student.course].forEach(value => {
+                        const cell = document.createElement("td");
+                        cell.textContent = value;
+                        row.appendChild(cell);
+                    });
+
+                    const actionCell = document.createElement("td");
+                    const deleteButton = document.createElement("button");
+
+                    deleteButton.textContent = "Delete";
+                    deleteButton.className = "delete-button";
+                    deleteButton.addEventListener("click", () => {
+                        deleteStudent(student.id);
+                    });
+
+                    actionCell.appendChild(deleteButton);
+                    row.appendChild(actionCell);
+                    list.appendChild(row);
+                });
+            } catch (error) {
+                count.textContent = "Unable to load records.";
+                showMessage(
+                    "Backend unavailable. Start the Flask application first.",
+                    true
+                );
+            }
+        }
+
+        form.addEventListener("submit", async event => {
+            event.preventDefault();
+
+            const student = {
+                name: document.getElementById("name").value.trim(),
+                email: document.getElementById("email").value.trim(),
+                course: document.getElementById("course").value.trim()
+            };
+
+            try {
+                const response = await fetch("/api/students", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(student)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || "Could not add student.");
+                }
+
+                form.reset();
+                showMessage("Student added successfully!");
+                await loadStudents();
+            } catch (error) {
+                showMessage(error.message, true);
+            }
+        });
+
+        async function deleteStudent(id) {
+            if (!confirm("Are you sure you want to delete this student?")) {
+                return;
+            }
+
+            try {
+                const response = await fetch("/api/students/" + id, {
+                    method: "DELETE"
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || "Could not delete student.");
+                }
+
+                showMessage("Student deleted successfully!");
+                await loadStudents();
+            } catch (error) {
+                showMessage(error.message, true);
+            }
+        }
+
+        loadStudents();
+    </script>
+</body>
+</html>
